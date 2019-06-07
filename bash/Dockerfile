@@ -27,5 +27,7 @@ RUN chmod +x /usr/local/bin/kubectl
 COPY eks-map-iam-groups.sh /usr/bin/eks-map-iam-groups.sh
 RUN chmod +x /usr/bin/eks-map-iam-groups.sh
 
+WORKDIR /work
+
 ENTRYPOINT ["eks-map-iam-groups.sh"]
 CMD []

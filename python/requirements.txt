@@ -1,0 +1,3 @@
+boto3=1.9.163
+kubernetes=9.0.0
+aws-cli=1.16.172

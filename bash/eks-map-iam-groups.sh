@@ -1,6 +1,9 @@
 #!/bin/bash
 
-_passback() { while [ 0 -lt $# ]; do printf '%q=%q;' "$1" "${!1}"; shift; done; }
+find-duplicates() {
+  DUPLICATES=($(for v in "$@"; do echo "$v";done| sort| uniq| xargs))
+  echo $DUPLICATES
+}
 
 # https://docs.aws.amazon.com/eks/latest/userguide/add-user-role.html
 
@@ -8,17 +11,17 @@ AWS_ACCOUNT_NUM=$(aws sts get-caller-identity --output text --query 'Account')
 
 if [ -z $AWS_ACCOUNT_NUM ]
 then
-  echo -e "Could not retrieve AWS account number"
+  echo "Could not retrieve AWS account number"
   exit 1
 fi
-
-USER_YAML='[]'
 
 shopt -s expand_aliases
 alias yaml-value="yq -e -r"
 alias yaml="yq -e -r --yaml-output"
 
+USER_YAML='[]'
 MAPPING_ARGS=()
+PRESERVE_USERS=()
 
 # Parse arguments
 while [[ $# -gt 0 ]]
@@ -31,14 +34,21 @@ do
     shift
     ;;
     
-    --map|-map)
+    --map|-m)
     MAPPING_ARGS+=("$2")
     shift
     shift
     ;;
     
+    --preserve,-p)
+    IFS=',' read -r -a PRESERVE_USERS_ARG <<< $2
+    PRESERVE_USERS+=( "${PRESERVE_USERS_ARG[@]}" )
+    shift
+    shift
+    ;;
+    
     *)    # unknown option
-    echo -e "Unknown argument $1"
+    echo "Unknown argument $1"
     exit 1
     ;;
   esac
@@ -47,7 +57,7 @@ done
 # Validate number of arguments
 if [[ ${#MAPPING_ARGS[@]} -eq 0 ]]
 then
-  echo -e "Missing group mappings"
+  echo "Missing group mappings"
   exit 1
 fi
 
@@ -60,26 +70,38 @@ do
   # Validate argument is in format a=b
   if [[ ${#SPLIT_ARG[@]} -ne 2 ]]
   then
-    echo -e ${#SPLIT_ARG[@]}
-    echo -e "Invalid mapping argument format: $ARG"
+    echo "Invalid mapping argument format: $ARG"
     exit 1
   fi
   
   IAM_GROUP=${SPLIT_ARG[0]}
   if [ -z $IAM_GROUP ]
   then
-    echo -e "Missing IAM group in mapping argument: $ARG"
+    echo "Missing IAM group in mapping argument: $ARG"
     exit 1
   fi
   
   K8S_GROUPS_STR=${SPLIT_ARG[1]}
   if [ -z $K8S_GROUPS_STR ]
   then
-    echo -e "Missing kubernetes groups in mapping argument: $ARG"
+    echo "Missing kubernetes groups in mapping argument: $ARG"
     exit 1
   fi
   
   IFS=',' read -r -a K8S_GROUPS <<< $K8S_GROUPS_STR
+  
+  # Check for duplicates
+  if [[ ! -v MAPPINGS[${IAM_GROUP}] ]]
+  then
+    echo "Found duplicate argument for IAM group: $IAM_GROUP"
+    exit 1
+  fi
+  
+  if [[ ! -v $(find-duplicates ${K8S_GROUPS[@]}) ]]
+  then
+    echo "Found duplicate kubernetes groups for IAM group: $IAM_GROUP"
+    exit 1
+  fi
   
   MAPPINGS+=( [${IAM_GROUP}]=${K8S_GROUPS} )
 done
@@ -115,5 +137,14 @@ do
   
   unset K8S_GROUPS
 done
+
+# TODO get AWS all users of selected AWS groups
+# Add all the unique kubernetes groups to every user returned
+# Then remove any preserved users
+# Then get aws-auth configmap field mapUsers
+# Copy all of the preserved users into the USERS_YAML map
+# And finally update the aws-auth configmap
+
+# TODO iterate through every group and create users-X.yaml files, then merge them together, then apply preserve, then apply --record
 
 echo "$USER_YAML"

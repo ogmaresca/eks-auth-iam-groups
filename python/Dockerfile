@@ -1,16 +1,13 @@
 FROM python:3.7-alpine
 #FROM python:3.7-slim
 
-RUN pip3 --no-cache-dir install -r /app/requirements.txt \
-  kubernetes \
-  boto3
+COPY requirements.txt /src/requirements.txt
 
-#COPY . /app
-
-COPY . /src
-RUN python -m compileall -d /app /src
-#RUN python -m py_compile -d /app /src/*.py
+RUN pip3 --no-cache-dir install -r /src/requirements.txt
 
 WORKDIR /app
 
-CMD ["python", "eks-map-iam-groups.pyc"]
+COPY *.py /app
+
+ENTRYPOINT ["python", "eks-map-iam-groups.py"]
+CMD []

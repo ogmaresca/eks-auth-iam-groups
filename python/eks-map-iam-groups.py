@@ -1,59 +1,58 @@
 #!/usr/bin/python3
 
 # Kubernetes SDK
-from kubernetes import client,config
+from kubernetes import client as k8sclient, config as k8sconfig
 # AWS SDK
 import boto3
 import botocore
+
 import yaml
-import collections # TODO Remove
-import types # TODO Remove
 import sys
 import argparse
-import json # TODO Remove
 import asyncio
-import traceback # TODO Remove
-
-# TODO Add comments
 
 class MapUser:
-    def __init__(self, username, rolearn, groups):
+    def __init__(self, username, userarn, groups):
         self.username = username
-        self.rolearn = rolearn
+        self.userarn = userarn
         self.groups = list(set(groups))
     
     def add_groups(self, mapUser):
-        if self.username != mapUser.username or self.rolearn != mapUser.rolearn:
-            raise Exception("Cannot combine users - rolearn and/or usernames don't match")
-        self.groups.extend(mapUser.groups)
+        if self.username != mapUser.username or self.userarn != mapUser.userarn:
+            raise Exception("Cannot combine users - userarn and/or usernames don't match")
         self.groups = list(set(self.groups))
+        self.groups.extend(mapUser.groups)
+    
+    def to_dict(self):
+        return {
+            "username": self.username,
+            "userarn": self.userarn,
+            "groups": self.groups
+        }
 
 class ProgramArgs:
-    # __iam_mappings__: dict<string, list<string>>
-    # __users_to_preserve__: list<string>
+    # _iam_mappings: dict<string, list<string>>
+    # _users_to_preserve: list<string>
+    # _user_arns_to_preserve: list<string>
+    # _ignore_missing_groups: boolean
 
     def __init__(self):
-        self.__iam_mappings__ = {}
-        self.__users_to_preserve__ = []
+        self._iam_mappings = {}
+        self._users_to_preserve = []
+        self._user_arns_to_preserve = []
 
+        # Use ArgParse library to parse arguments
         parser = argparse.ArgumentParser(description="IAM group mappings", add_help=True, allow_abbrev=True, prefix_chars='-')
-    
         mappingHelp = "IAM group mappings should be in the format <IAM Group>=<Kubernetes Group>,<Kubernetes Group>,<Kubernetes group>"
         parser.add_argument("--map", "-map", "-m", action='append', nargs='+', help=mappingHelp)
         preserveHelp = "IAM users to preserve. Supports both names and ARNs, and both commas and separate arguments."
         parser.add_argument("--preserve", "-preserve", "-p", action='append', nargs='+', help=preserveHelp)
         parser.add_argument("--ignore", "-i", action='store_true', help="Ignore any IAM groups that do not exist.")
-    
         args = parser.parse_args()
 
-        self.__ignore_missing_groups__ = args.ignore is not None and args.ignore
+        self._ignore_missing_groups = args.ignore is not None and args.ignore
 
-        print("YAML Mapping of args:") # TODO remove
-        print("---") # TODO remove
-        yaml.dump(args, sys.stdout) # TODO remove
-        print("---") # TODO remove
-        
-        # Parse IAM group mappings
+        # Parse IAM group mappings <IAM Group>=<Kubernetes Group>,<Kubernetes Group>,<Kubernetes Group>,<Kubernetes Group>
         if args.map is None or len(args.map) == 0:
             raise Exception("Invalid arguments - missing IAM user mappings")
 
@@ -61,26 +60,24 @@ class ProgramArgs:
             if type(mapping) is list:
                 mapping = mapping[0]
 
-            print("mapping is %s" % type(mapping)) # TODO remove
-
             split = mapping.split("=")
             if(len(split) != 2):
-                raise Exception("Invalid mapping argument: %s" % mapping)
+                raise Exception(f"Invalid mapping argument: {mapping}")
             
-            iam_group = split[0]
-            k8s_groups = split[-1].split(",")
+            iamGroup = split[0]
+            k8sGroups = split[-1].split(",")
 
             if len(split) == 0:
-                raise Exception("Invalid mapping argument - missing Kubernetes groups for IAM group: %s" % iam_group)
+                raise Exception(f"Invalid mapping argument - missing Kubernetes groups for IAM group: {iamGroup}")
             
-            if iam_group in self.__iam_mappings__:
-                raise Exception("Duplicate mapping for IAM group: %s" % iam_group)
+            if iamGroup in self._iam_mappings:
+                raise Exception(f"Duplicate mapping for IAM group: {iamGroup}")
             
-            k8s_groups = list(set(filter(bool, k8s_groups)))
-            if len(k8s_groups) == 0:
-                print("No kubernetes groups were provided for IAM group: %s" % iam_group)
+            k8sGroups = list(set(filter(bool, k8sGroups)))
+            if len(k8sGroups) == 0:
+                print(f"No kubernetes groups were provided for IAM group: {iamGroup}")
                 continue
-            self.__iam_mappings__[iam_group] = k8s_groups
+            self._iam_mappings[iamGroup] = k8sGroups
         
         # Parse users to preserve
         if(args.preserve is None):
@@ -90,8 +87,6 @@ class ProgramArgs:
             if type(usersToPreserve) is list:
                 usersToPreserve = usersToPreserve[0]
 
-            print("usersToPreserve is %s" % type(mapping)) # TODO remove
-
             split = usersToPreserve.split(",")
 
             if len(split) == 0:
@@ -99,110 +94,128 @@ class ProgramArgs:
             
             for userToPreserve in split:
                 if userToPreserve.startswith("arn:aws:iam"):
-                    userSplit = userToPreserve.split('/')
-                    if len(userSplit) != 2:
-                        raise Exception("Invalid IAM user ARN in preserve argument: %s" % userToPreserve)
-                    userToPreserve = userSplit[-1]
-
-                self.__users_to_preserve__.append(userToPreserve)
-            
-        print("IAM mappings: %s" % json.dumps(self.__iam_mappings__)) # TODO remove
-
-        self.__users_to_preserve__ = list(set(filter(bool, self.__users_to_preserve__)))
-
-        print("Users to preserve: %s" % json.dumps(self.__users_to_preserve__)) # TODO remove
-
-    def get_all_mappings(self):
-        return self.__iam_mappings__
+                    self._user_arns_to_preserve.append(userToPreserve)
+                else:
+                    self._users_to_preserve.append(userToPreserve)
+        
+        # Get distinct and non-empty users
+        self._users_to_preserve = list(set(filter(bool, self._users_to_preserve)))
+        self._user_arns_to_preserve = list(set(filter(bool, self._user_arns_to_preserve)))
     
     def get_iam_groups(self):
-        return self.__iam_mappings__.keys()
+        return self._iam_mappings.keys()
     
     def get_kubernetes_groups(self, iamGroup):
-        if(iamGroup not in self.__iam_mappings__):
-            raise KeyError("Group not found: %s" % iamGroup)
-        return self.__iam_mappings__[iamGroup]
+        if(iamGroup not in self._iam_mappings):
+            raise KeyError(f"Group not found: {iamGroup}")
+        return self._iam_mappings[iamGroup]
     
     def is_preserve_user(self, iamUser):
         if(iamUser.startswith("arn:aws:iam")):
-            split = iamUser.split('/')
-
-            if(len(split) != 2):
-                raise Exception("Invalid IAM user ARN: %s" % iamUser)
-            
-            iamUser = split[-1]
-        return iamUser in self.__users_to_preserve__
+            return iamUser in self._user_arns_to_preserve
+        else:
+            return iamUser in self._users_to_preserve
     
     def is_ignore_missing_groups(self):
-        return self.__ignore_missing_groups__
+        return self._ignore_missing_groups
 
 class AWSIAMClient:
     def __init__(self, args):
-        self.__args__ = args
-
-        self.__aws_client__ = boto3.client('iam')
-
+        self._args = args
+        self._aws_client = boto3.client('iam')
 
     async def get_users(self):
-        print("get_users") # TODO remove
+        groups = self._args.get_iam_groups()
         
-        groups = self.__args__.get_iam_groups()
-        
+        # Asynchronously get all IAM users for the given groups
         mappedUsersOfGroups = await asyncio.gather(*[self.get_iam_users_in_group(g) for g in groups])
-
-        print("Users: %s" % yaml.dump(mappedUsersOfGroups)) # TODO remove
-
+        
+        # Flat map IAM users
         users = {}
         for groupUsers in mappedUsersOfGroups:
             for user in groupUsers:
-                if user.username in users:
-                    existingUser = users[user.username].add_groups(user)
-                    users[user.username] = existingUser
+                if user.username in users.keys():
+                    users[user.username].add_groups(user)
                 else:
                     users[user.username] = user
         
-        # TODO handle users to preserve
-
-        return list(users.values())
+        # Remove preserved users
+        users = filter(lambda u: not self._args.is_preserve_user(u.username) and not self._args.is_preserve_user(u.userarn), users.values())
+        
+        # Convert MapUser objects to dicts
+        return list(u.to_dict() for u in users)
     
     async def get_iam_users_in_group(self, iamGroup):
+        """
+        Asynchronously get all IAM users in `iamGroup`
+        """
         try:
-            kubernetesGroups = self.__args__.get_kubernetes_groups(iamGroup)
-            mappedUsers = []
+            kubernetesGroups = self._args.get_kubernetes_groups(iamGroup)
             mapFn = lambda user: MapUser(user["UserName"], user["Arn"], list(kubernetesGroups))
-            maxItems = 100 # TODO test
-            print("Getting IAM users from group %s" % iamGroup) # TODO remove
-            response = self.__aws_client__.get_group(GroupName = iamGroup, MaxItems = maxItems)
-            print("IAM response for group %s: %s" % (iamGroup, yaml.dump(response))) # TODO remove
-            mappedUsers.extend(list(map(mapFn, response["Users"])))
-
+            maxItems = 100
+            response = self._aws_client.get_group(GroupName = iamGroup, MaxItems = maxItems)
+            mappedUsers = list(map(mapFn, response["Users"]))
+            numCalls = 1
+            
+            # If response is truncated, continue making calls with the previous marker
             while(response["IsTruncated"]):
                 marker = response["Marker"]
-                response = self.__aws_client__.get_group(GroupName = iamGroup, Marker = marker, MaxItems = maxItems)
+                response = self._aws_client.get_group(GroupName = iamGroup, Marker = marker, MaxItems = maxItems)
                 mappedUsers.extend(list(map(mapFn, response["Users"])))
+                numCalls += 1
         
-            print("Received %d IAM users from group %s" % (len(mappedUsers), iamGroup))
+            print(f"Received {len(mappedUsers)} IAM users from group {iamGroup} ({numCalls} API calls)")
 
             return mappedUsers
         except Exception:
             exec_type, exec_value, exec_traceback = sys.exc_info()
-            print("Received exception type %s with value %s when getting IAM group %s" % (exec_type, exec_value, iamGroup)) # TODO remove
-            if self.__args__.is_ignore_missing_groups():
-                print("Warning: IAM group %s does not exist!" % iamGroup)
+            print(f"Received exception type {exec_type} with value {exec_value} when getting IAM group {iamGroup}:\n{exec_traceback}")
+            if self._args.is_ignore_missing_groups():
+                print(f"Warning: IAM group {iamGroup} does not exist!")
             else:
-                raise Exception("IAM group %s does not exist!" % iamGroup)
-
-    
-
-def get_iam_users(group):
-    print("TODO")
+                raise Exception(f"IAM group {iamGroup} does not exist!")
 
 async def main():
+    print("Starting eks-map-iam-groups")
+
     args = ProgramArgs()
     users = await AWSIAMClient(args).get_users()
-    print("Mapped Users: %s" % yaml.dump(users)) # TODO remove
 
-    # TODO kubernetes update
+    namespace = "kube-system"
+    configmap = "aws-auth"
+
+    k8sconfig.load_kube_config()
+    k8sv1 = k8sclient.CoreV1Api()
+
+    # type = V1ConfigMap
+    aws_auth = None
+    try:
+        aws_auth = k8sv1.read_namespaced_config_map(name=configmap, namespace=namespace)
+    except Exception:
+        exec_type, exec_value, exec_traceback = sys.exc_info()
+        raise Exception(f"Received exception type {exec_type} with value {exec_value} when getting ConfigMap {namespace}/{configmap}:\n{exec_traceback}")
+    aws_auth_data = aws_auth.data
     
+    preexisting_aws_auth_users = aws_auth_data["mapUsers"]
+    aws_auth_users = []
+    if aws_auth_users is not None:
+        print(f"Pre-existing user map:\n{preexisting_aws_auth_users}")
+        aws_auth_users = yaml.load(preexisting_aws_auth_users)
+        aws_auth_users = list(filter(lambda u: args.is_preserve_user(u["username"]) or args.is_preserve_user(u["userarn"]), aws_auth_users))
+    aws_auth_users.extend(users)
+    aws_auth_users.sort(key = lambda u: u["username"])
+    aws_auth_users = yaml.dump(aws_auth_users)
+
+    if preexisting_aws_auth_users == aws_auth_users:
+        print(f"Not updating ConfigMap {namespace}/{configmap} - no changes to make")
+    else:
+        print(f"Final user map:\n{aws_auth_users}")
+        aws_auth_data["mapUsers"] = aws_auth_users
+        aws_auth.data = aws_auth_data
+        try:
+            k8sv1.replace_namespaced_config_map(name=configmap, namespace=namespace, body=aws_auth, pretty=True)
+        except:
+            exec_type, exec_value, exec_traceback = sys.exc_info()
+            raise Exception(f"Received exception type {exec_type} with value {exec_value} when updating ConfigMap {namespace}/{configmap}:\n{exec_traceback}")
 
 asyncio.run(main())

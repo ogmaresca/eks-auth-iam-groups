@@ -24,7 +24,8 @@ You can use the `IAMReadOnlyAccess` policy to give this app the AWS access it ne
 First, add this repo to Helm:
 
 ``` bash
-helm repo add eks-map-iam-groups https://raw.githubusercontent.com/ggmaresca/eks-map-iam-groups/master/charts
+helm repo add eks-auth-iam-groups https://raw.githubusercontent.com/ggmaresca/eks-auth-iam-groups/master/charts
+helm repo update
 ```
 
 Then use this command to install it:

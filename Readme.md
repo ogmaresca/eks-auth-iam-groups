@@ -91,3 +91,7 @@ If you want to manually control some users, you can add them as a preserve argum
 ## Ignore Unknown IAM Groups
 
 By default, this program will fail if one of the IAM groups doesn't exist. Adding the argument `--ignore` will prevent this.
+
+# Docker Hub
+
+[View the Docker Hub page for this repo](https://hub.docker.com/r/gmaresca/eks-auth-iam-groups)

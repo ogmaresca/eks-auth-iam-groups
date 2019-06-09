@@ -22,7 +22,7 @@ ignoreMissingIAMGroups: true
 
 image:
   repository: gmaresca/eks-auth-iam-groups
-  tag: '2019.06.08'
+  tag: '2019.06.09'
   pullPolicy: IfNotPresent
 
 imagePullSecrets: []

@@ -207,7 +207,7 @@ async def main():
     aws_auth_users = []
     if aws_auth_users is not None:
         print(f"Pre-existing user map:\n{preexisting_aws_auth_users}")
-        aws_auth_users = yaml.load(preexisting_aws_auth_users)
+        aws_auth_users = yaml.safe_load(preexisting_aws_auth_users)
         aws_auth_users = list(filter(lambda u: args.is_preserve_user(u["username"]) or args.is_preserve_user(u["userarn"]), aws_auth_users))
     aws_auth_users.extend(users)
     aws_auth_users.sort(key = lambda u: u["username"])

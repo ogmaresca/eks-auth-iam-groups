@@ -1,0 +1,129 @@
+apiVersion: batch/v1beta1
+kind: CronJob
+metadata:
+  name: {{ include "eks-auth-iam-groups.fullname" . }}
+  labels:
+    {{- include "eks-auth-iam-groups.selector" . | nindent 4 }}
+spec:
+  schedule: {{ .Values.schedule | quote }}
+  startingDeadlineSeconds: {{ .Values.startingDeadlineSeconds }}
+  successfulJobsHistoryLimit: {{ .Values.successfulJobsHistoryLimit }}
+  concurrencyPolicy: {{ .Values.concurrencyPolicy }}
+  failedJobsHistoryLimit: {{ .Values.failedJobsHistoryLimit }}
+  suspend: {{ .Values.suspend }}
+  jobTemplate:
+    metadata:
+      labels:
+        {{- include "eks-auth-iam-groups.selector" . | nindent 8 }}
+    spec:
+      backoffLimit: {{ .Values.backoffLimit }}
+      template:
+        metadata:
+          labels:
+            {{- include "eks-auth-iam-groups.selector" . | nindent 12 }}
+        spec:
+          {{- with .Values.imagePullSecrets }}
+          imagePullSecrets:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          serviceAccountName: {{ include "eks-auth-iam-groups.fullname" . }}
+          containers:
+          - name: {{ .Chart.Name }}
+            image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+            imagePullPolicy: {{ .Values.imagePullPolicy }}
+            env:
+            {{- if not (empty .Values.aws.region) }}
+            - name: AWS_REGION
+              value: {{ .Values.aws.region | quote }}
+            {{- end }}
+            - name: AWS_ACCESS_KEY_ID
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "eks-auth-iam-groups.fullname" . }}
+                  key: access-key
+                  optional: true
+            - name: AWS_SECRET_ACCESS_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "eks-auth-iam-groups.fullname" . }}
+                  key: secret-key
+                  optional: true
+            {{- if ne .Values.aws.profile "default" }}
+            - name: AWS_PROFILE
+              value: {{ .Values.aws.profile | quote }}
+            {{- end }}
+            command: []
+            args:
+            # Group mappings
+            {{- range .Values.mappings }}
+            - --map
+            - "{{ .iam }}={{ include "helm-toolkit.utils.joinListWithComma" .k8s }}"
+            {{- end }}
+            # Users to preserve
+            {{- range .Values.preserve }}
+            - -p
+            - {{ . | quote }}
+            {{- end }}
+            {{- if .Values.ignoreMissingIAMGroups }}
+            - --ignore
+            {{- end }}
+            {{- with .Values.resources }}
+            resources:
+              {{- toYaml . | indent 14 }}
+            {{- end }}
+            {{- if .Values.aws.volume.enabled }}
+            volumeMounts:
+            - name: aws-credentials
+              mountPath: /root/.aws
+              subPath: {{ .Values.aws.volume.subPath | quote }}
+              readOnly: true
+            {{- end }}
+            {{- range .Values.sidecars }}
+            -
+              {{- . | toYaml | nindent 14 }}
+            {{- end }}
+          {{- if .Values.aws.volume.enabled }}
+          volumes:
+          - name: aws-credentials
+            {{ $volumeSpecialKeys := list "enabled" "subPath" "name" }}
+            {{- range $key, $value := .Values.aws.volume }}
+            {{- if not (has $key $volumeSpecialKeys) }}
+            {{ $key | quote }}:
+              {{- $value | toYaml | nindent 14 }}
+            {{- end }}
+            {{- end }}
+          {{- end }}
+          {{- with .Values.nodeSelector }}
+          nodeSelector:
+            {{- toYaml . | indent 12 }}
+          {{- end }}
+          {{- with .Values.affinity }}
+          affinity:
+            {{- toYaml . | indent 12 }}
+          {{- end }}
+          {{- with .Values.tolerations }}
+          tolerations:
+            {{- toYaml . | indent 12 }}
+          {{- end }}
+          restartPolicy: Never
+          {{- with .Values.securityContext }}
+          securityContext:
+            {{- toYaml . | indent 12 }}
+          {{- end }}
+          hostNetwork: {{ .Values.hostNetwork }}
+          {{- with .Values.initContainers }}
+          initContainers:
+            {{- toYaml . | indent 12 }}
+          {{- end }}
+          {{- if .Values.priority }}
+          priority: {{ .Value.priority }}
+          {{- end }}
+          {{- if .Values.priorityClassName }}
+          priorityClassName: {{ .Value.priorityClassName | quote }}
+          {{- end }}
+          {{- if .Values.runtimeClassName }}
+          runtimeClassName: {{ .Value.runtimeClassName | quote }}
+          {{- end }}
+          {{- if .Values.schedulerName }}
+          schedulerName: {{ .Value.schedulerName | quote }}
+          {{- end }}

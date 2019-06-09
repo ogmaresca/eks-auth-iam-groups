@@ -167,11 +167,12 @@ class AWSIAMClient:
             print(f"Received {len(mappedUsers)} IAM users from group {iamGroup} ({numCalls} API calls)")
 
             return mappedUsers
-        except Exception:
+        except self._aws_client.exceptions.NoSuchEntityException:
             exec_type, exec_value, exec_traceback = sys.exc_info()
             print(f"Received exception type {exec_type} with value {exec_value} when getting IAM group {iamGroup}:\n{exec_traceback}")
             if self._args.is_ignore_missing_groups():
                 print(f"Warning: IAM group {iamGroup} does not exist!")
+                return []
             else:
                 raise Exception(f"IAM group {iamGroup} does not exist!")
 
@@ -183,8 +184,14 @@ async def main():
 
     namespace = "kube-system"
     configmap = "aws-auth"
-
-    k8sconfig.load_kube_config()
+    
+    try:
+        k8sconfig.load_incluster_config()
+    except k8sconfig.config_exception.ConfigException:
+        exec_type, exec_value, exec_traceback = sys.exc_info()
+        print(f"Received exception type {exec_type} with value {exec_value} when getting in-cluster Kubernetes config. Attempting to load ~/.kube config")
+        k8sconfig.load_kube_config()
+    
     k8sv1 = k8sclient.CoreV1Api()
 
     # type = V1ConfigMap

@@ -1,0 +1,69 @@
+# Default values for eks-auth-iam-groups.
+# This is a YAML-formatted file.
+# Declare variables to be passed into your templates.
+
+schedule: "0/1 * * * *"
+startingDeadlineSeconds: 600
+successfulJobsHistoryLimit: 1
+suspend: false
+concurrencyPolicy: "Forbid"
+failedJobsHistoryLimit: 3
+backoffLimit: 1
+
+mappings: []
+  #- iam: IAMGroup
+  #  k8s:
+  #  - system:masters
+
+preserve: []
+  #- iamUserToPreserve
+
+ignoreMissingIAMGroups: true
+
+image:
+  repository: gmaresca/eks-auth-iam-groups
+  tag: '2019.06.08'
+  pullPolicy: IfNotPresent
+
+imagePullSecrets: []
+
+nameOverride: ""
+fullnameOverride: ""
+
+podAnnotations: {}
+  #iam.amazonaws.com/role: iam-readonly
+
+aws:
+  #region: us-east-1
+  #accessKey: ABCDEFGHIJKLMNOPQRST
+  #secretKey: abc123ABC+abc123ABC/abc123ABC+abc123ABC
+  profile: default
+  volume:
+    enabled: false
+    subPath: ''
+
+resources: {}
+  # We usually recommend not to specify default resources and to leave this as a conscious
+  # choice for the user. This also increases chances charts run on environments with little
+  # resources, such as Minikube. If you do want to specify resources, uncomment the following
+  # lines, adjust them as necessary, and remove the curly braces after 'resources:'.
+  # limits:
+  #   cpu: 100m
+  #   memory: 128Mi
+  # requests:
+  #   cpu: 100m
+  #   memory: 128Mi
+
+nodeSelector: {}
+
+tolerations: []
+
+affinity: {}
+
+securityContext: {}
+
+hostNetwork: false
+
+initContainers: []
+
+sidecars: []

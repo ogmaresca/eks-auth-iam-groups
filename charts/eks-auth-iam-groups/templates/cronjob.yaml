@@ -55,9 +55,9 @@ spec:
             command: []
             args:
             # Group mappings
-            {{- range .Values.mappings }}
+            {{- range $key, $value := .Values.mappings }}
             - --map
-            - "{{ .iam }}={{ include "helm-toolkit.utils.joinListWithComma" .k8s }}"
+            - "{{ $key }}={{ include "helm-toolkit.utils.joinListWithComma" $value }}"
             {{- end }}
             # Users to preserve
             {{- range .Values.preserve }}

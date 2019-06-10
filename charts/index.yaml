@@ -2,10 +2,10 @@ apiVersion: v1
 entries:
   eks-auth-iam-groups:
   - apiVersion: v1
-    appVersion: 2019.06.09
-    created: "2019-06-09T10:29:58.835207823-04:00"
+    appVersion: 1.0.0
+    created: "2019-06-09T22:11:19.954843895-04:00"
     description: A Helm Chart for eks-auth-iam-groups
-    digest: sha256:d10c03ac61d4ecf2a5e38d310f693a1741cfd904d75d78291112e3e9b351cf97
+    digest: sha256:3a961720407a5c099a348931ae86faa767010599983d317f85002fa9d154dd78
     name: eks-auth-iam-groups
     urls:
     - eks-auth-iam-groups-1.0.0.tgz

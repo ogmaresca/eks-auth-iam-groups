@@ -10,10 +10,9 @@ concurrencyPolicy: "Forbid"
 failedJobsHistoryLimit: 3
 backoffLimit: 1
 
-mappings: []
-  #- iam: IAMGroup
-  #  k8s:
-  #  - system:masters
+mappings: {}
+  #IAMGroup:
+  #- system:masters
 
 preserve: []
   #- iamUserToPreserve
@@ -22,7 +21,7 @@ ignoreMissingIAMGroups: true
 
 image:
   repository: gmaresca/eks-auth-iam-groups
-  tag: '2019.06.09'
+  tag: '1.0.0'
   pullPolicy: IfNotPresent
 
 imagePullSecrets: []

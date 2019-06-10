@@ -31,7 +31,7 @@ helm repo update
 Then use this command to install it:
 
 ``` bash
-helm upgrade --install --namespace=kube-system eks-auth-iam-groups eks-map-iam-groups/eks-map-iam-groups --set 'groupMappings.<IAM Group to map>={system:masters}'
+helm upgrade --install --namespace=kube-system eks-auth-iam-groups eks-auth-iam-groups/eks-auth-iam-groups --set 'groupMappings.<IAM Group to map>={system:masters}'
 ```
 
 To preserve users, add the following arguments:

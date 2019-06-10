@@ -10,6 +10,7 @@ import yaml
 import sys
 import argparse
 import asyncio
+import logging
 
 def splitWithEscape(stringToSplit, splitChar, max=None):
     retVal = []
@@ -108,11 +109,11 @@ class ProgramArgs:
             
             k8sGroups = list(set(filter(bool, splitWithEscape(k8sGroups, ','))))
             if len(k8sGroups) == 0:
-                print(f"Warning: No kubernetes groups were provided for IAM group: {iamGroup}")
+                logging.warning(f"No kubernetes groups were provided for IAM group: {iamGroup}")
 
             k8sGroups = list(set(filter(bool, k8sGroups)))
             if len(k8sGroups) == 0:
-                print(f"No kubernetes groups were provided for IAM group: {iamGroup}")
+                logging.warning(f"No kubernetes groups were provided for IAM group: {iamGroup}")
                 continue
             self._iam_mappings[iamGroup] = k8sGroups
         
@@ -130,7 +131,7 @@ class ProgramArgs:
             split = splitWithEscape(usersToPreserve, ',')
 
             if len(split) == 0:
-                print("Warning: empty preserve argument")
+                logging.warning("Empty preserve argument")
             
             for userToPreserve in split:
                 if isARN(userToPreserve):
@@ -204,20 +205,26 @@ class AwsIamClient:
                 mappedUsers.extend(list(map(mapFn, response["Users"])))
                 numCalls += 1
         
-            print(f"Received {len(mappedUsers)} IAM users from group {iamGroup} ({numCalls} API calls)")
+            logging.info(f"Received {len(mappedUsers)} IAM users from group {iamGroup} ({numCalls} API calls)")
 
             return mappedUsers
         except self._aws_client.exceptions.NoSuchEntityException:
-            exec_type, exec_value, exec_traceback = sys.exc_info()
-            print(f"Received exception type {exec_type} with value {exec_value} when getting IAM group {iamGroup}:\n{exec_traceback}")
             if self._args.is_ignore_missing_groups():
-                print(f"Warning: IAM group {iamGroup} does not exist!")
+                logging.warning(f"IAM group {iamGroup} does not exist!")
                 return []
             else:
+                exec_type, exec_value, exec_traceback = sys.exc_info()
+                logging.error(f"Received exception type {exec_type} with value {exec_value} when getting IAM group {iamGroup}:\n{exec_traceback}")
                 raise Exception(f"IAM group {iamGroup} does not exist!")
+        except Exception:
+            exec_type, exec_value, exec_traceback = sys.exc_info()
+            logging.error(f"Received exception type {exec_type} with value {exec_value} when getting IAM group {iamGroup}:\n{exec_traceback}")
+            raise Exception(f"Error getting IAM group {iamGroup}: {exec_value}")
 
 async def main():
-    print("Starting eks-map-iam-groups")
+    logging.basicConfig(format='[%(levelname)s] %(asctime)s: %(message)s', level='INFO')
+    
+    logging.info("Starting eks-map-iam-groups")
 
     args = ProgramArgs()
     users = await AwsIamClient(args).get_users()
@@ -229,8 +236,12 @@ async def main():
         k8sconfig.load_incluster_config()
     except k8sconfig.config_exception.ConfigException:
         exec_type, exec_value, exec_traceback = sys.exc_info()
-        print(f"Received exception type {exec_type} with value {exec_value} when getting in-cluster Kubernetes config. Attempting to load ~/.kube config")
-        k8sconfig.load_kube_config()
+        logging.warning(f"Received exception type {exec_type} with value {exec_value} when getting in-cluster Kubernetes config. Attempting to load ~/.kube config")
+        try:
+          k8sconfig.load_kube_config()
+        except k8sconfig.config_exception.ConfigException:
+            exec_type, exec_value, exec_traceback = sys.exc_info()
+            logging.error(f"Received exception type {exec_type} with value {exec_value} when loading ~/.kube config")
     
     k8sv1 = k8sclient.CoreV1Api()
 
@@ -246,18 +257,18 @@ async def main():
     preexisting_aws_auth_users = aws_auth_data["mapUsers"]
     aws_auth_users = []
     if aws_auth_users is not None:
-        print(f"Pre-existing user map:\n{preexisting_aws_auth_users}")
+        logging.info(f"Pre-existing user map:\n{preexisting_aws_auth_users}")
         aws_auth_users = yaml.safe_load(preexisting_aws_auth_users)
         aws_auth_users = list(filter(lambda u: args.is_preserve_user(u["username"]) or args.is_preserve_user(u["userarn"]), aws_auth_users))
     aws_auth_users.extend(users)
     aws_auth_users.sort(key = lambda u: u["username"])
-    aws_auth_users = yaml.dump(aws_auth_users)
+    aws_auth_users_yaml = yaml.dump(aws_auth_users)
 
-    if preexisting_aws_auth_users == aws_auth_users:
-        print(f"Not updating ConfigMap {namespace}/{configmap} - no changes to make")
+    if preexisting_aws_auth_users == aws_auth_users_yaml:
+        logging.info(f"Not updating ConfigMap {namespace}/{configmap} - no changes to make")
     else:
-        print(f"Final user map:\n{aws_auth_users}")
-        aws_auth_data["mapUsers"] = aws_auth_users
+        logging.info(f"Final user map:\n{aws_auth_users_yaml}")
+        aws_auth_data["mapUsers"] = aws_auth_users_yaml
         aws_auth.data = aws_auth_data
         try:
             k8sv1.replace_namespaced_config_map(name=configmap, namespace=namespace, body=aws_auth, pretty=True)

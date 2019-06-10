@@ -3,7 +3,10 @@ kind: CronJob
 metadata:
   name: {{ include "eks-auth-iam-groups.fullname" . }}
   labels:
-    {{- include "eks-auth-iam-groups.selector" . | nindent 4 }}
+    {{- include "eks-auth-iam-groups.labels" . | nindent 4 }}
+    {{- include "eks-auth-iam-groups.stringDict" .Values.cronjobLabels | nindent 8 }}
+  annotations:
+    {{- include "eks-auth-iam-groups.stringDict" .Values.cronjobAnnotations | nindent 8 }}
 spec:
   schedule: {{ .Values.schedule | quote }}
   startingDeadlineSeconds: {{ .Values.startingDeadlineSeconds }}
@@ -14,13 +17,19 @@ spec:
   jobTemplate:
     metadata:
       labels:
-        {{- include "eks-auth-iam-groups.selector" . | nindent 8 }}
+        {{- include "eks-auth-iam-groups.labels" . | nindent 8 }}
+        {{- include "eks-auth-iam-groups.stringDict" .Values.jobLabels | nindent 8 }}
+      annotations:
+        {{- include "eks-auth-iam-groups.stringDict" .Values.jobAnnotations | nindent 8 }}
     spec:
       backoffLimit: {{ .Values.backoffLimit }}
       template:
         metadata:
           labels:
-            {{- include "eks-auth-iam-groups.selector" . | nindent 12 }}
+            {{- include "eks-auth-iam-groups.labels" . | nindent 12 }}
+            {{- include "eks-auth-iam-groups.stringDict" .Values.podLabels | nindent 12 }}
+          annotations:
+            {{- include "eks-auth-iam-groups.stringDict" .Values.podAnnotations | nindent 12 }}
         spec:
           {{- with .Values.imagePullSecrets }}
           imagePullSecrets:

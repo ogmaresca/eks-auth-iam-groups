@@ -51,6 +51,12 @@ version: {{ .Chart.AppVersion | quote }}
 heritage: {{ .Release.Service }}
 {{- end -}}
 
+{{- define "eks-auth-iam-groups.stringDict" -}}
+{{ range $key, $value := . }}
+{{ $key | quote }}: {{ $value | quote }}
+{{ end }}
+{{- end -}}
+
 {{/* https://github.com/openstack/openstack-helm-infra/blob/master/helm-toolkit/templates/utils/_joinListWithComma.tpl */}}
 {{- define "helm-toolkit.utils.joinListWithComma" -}}
 {{- $local := dict "first" true -}}

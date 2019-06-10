@@ -1,6 +1,6 @@
 # eks-auth-iam-groups
 
-Inspired by [iam-eks-user-mapper](https://github.com/ygrene/iam-eks-user-mapper). This project aims to allow mapping multiple groups in the auth map, as well as control the polling rate.
+Inspired by [iam-eks-user-mapper](https://github.com/ygrene/iam-eks-user-mapper). This project aims to allow mapping multiple groups in the auth map, as well as control the scheduling rate.
 
 # Installation
 
@@ -51,7 +51,7 @@ To fail on non-existent IAM groups, add the following arguments:
 To install using Kube2IAM, add the following arguments:
 
 ``` bash
---set podAnnotations.iam\.amazonaws\.com/role=<IAM role>
+--set 'podAnnotations.iam\.amazonaws\.com/role=<IAM role>'
 ```
 
 To install with access and secret keys, add the following arguments instead:
@@ -66,10 +66,10 @@ To install in a local cluster using a Volume Mount, add the following arguments 
 --set aws.volume.enabled=true,aws.volume.hostPath.path=${HOME}/.aws
 ```
 
-To install in a local cluster using a pre-existing ConfigMap that replicates the structure of the `~/.aws` folder from the AWS CLI, add the following arguments instead:
+To install in a local cluster using a pre-existing Secret that replicates the structure of the `~/.aws` folder from the AWS CLI, add the following arguments instead:
 
 ``` bash
---set aws.volume.enabled=true,aws.volume.configmap.name=<Pre-existing AWS credential configmap>
+--set aws.volume.enabled=true,aws.volume.secret.secretName=<Pre-existing AWS credentials Secret>
 ```
 
 Any value in the [v1 Volume API spec](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.12/#volume-v1-core) is supported.

@@ -4,7 +4,7 @@ metadata:
   name: {{ include "eks-auth-iam-groups.fullname" . }}
   namespace: kube-system
   labels:
-    {{- include "eks-auth-iam-groups.selector" . | nindent 4 }}
+    {{- include "eks-auth-iam-groups.labels" . | nindent 4 }}
 subjects:
   - kind: ServiceAccount
     name: {{ include "eks-auth-iam-groups.fullname" . }}

@@ -87,10 +87,7 @@ spec:
               subPath: {{ .Values.aws.volume.subPath | quote }}
               readOnly: true
             {{- end }}
-            {{- range .Values.sidecars }}
-            -
-              {{- . | toYaml | nindent 14 }}
-            {{- end }}
+          {{- .Values.sidecars | toYaml | nindent 10 }}
           {{- if .Values.aws.volume.enabled }}
           volumes:
           - name: aws-credentials

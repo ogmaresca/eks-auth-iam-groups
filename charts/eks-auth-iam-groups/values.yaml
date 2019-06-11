@@ -29,10 +29,10 @@ imagePullSecrets: []
 nameOverride: ""
 fullnameOverride: ""
 
-cronjobLabels:
+cronjobLabels: {}
 cronjobAnnotations: {}
 
-jobLabels:
+jobLabels: {}
 jobAnnotations: {}
 
 podLabels: {}

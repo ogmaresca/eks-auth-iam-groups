@@ -78,7 +78,7 @@ spec:
             {{- end }}
             {{- with .Values.resources }}
             resources:
-              {{- toYaml . | indent 14 }}
+              {{- toYaml . | nindent 14 }}
             {{- end }}
             {{- if .Values.aws.volume.enabled }}
             volumeMounts:
@@ -101,25 +101,25 @@ spec:
           {{- end }}
           {{- with .Values.nodeSelector }}
           nodeSelector:
-            {{- toYaml . | indent 12 }}
+            {{- toYaml . | nindent 12 }}
           {{- end }}
           {{- with .Values.affinity }}
           affinity:
-            {{- toYaml . | indent 12 }}
+            {{- toYaml . | nindent 12 }}
           {{- end }}
           {{- with .Values.tolerations }}
           tolerations:
-            {{- toYaml . | indent 12 }}
+            {{- toYaml . | nindent 12 }}
           {{- end }}
           restartPolicy: Never
           {{- with .Values.securityContext }}
           securityContext:
-            {{- toYaml . | indent 12 }}
+            {{- toYaml . | nindent 12 }}
           {{- end }}
           hostNetwork: {{ .Values.hostNetwork }}
           {{- with .Values.initContainers }}
           initContainers:
-            {{- toYaml . | indent 12 }}
+            {{- toYaml . | nindent 12 }}
           {{- end }}
           {{- if .Values.priority }}
           priority: {{ .Value.priority }}

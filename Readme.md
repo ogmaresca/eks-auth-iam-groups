@@ -31,19 +31,19 @@ helm repo update
 Then use this command to install it:
 
 ``` bash
-helm upgrade --install --namespace=kube-system eks-auth-iam-groups eks-auth-iam-groups/eks-auth-iam-groups --set 'groupMappings.<IAM Group to map>={system:masters}'
+helm upgrade --install --namespace=kube-system eks-auth-iam-groups eks-auth-iam-groups/eks-auth-iam-groups --set 'mappings.<IAM Group to map>={system:masters}'
 ```
 
 To preserve users, add the following arguments:
 
 ``` bash
---set 'preserveUsers={<iam_user_1>,<iam_user_2>}'
+--set 'preserve={<iam_user_1>,<iam_user_2>}'
 ```
 
 To fail on non-existent IAM groups, add the following arguments:
 
 ``` bash
---set ignoreMissingIAMGroups=true
+--set ignoreMissingIAMGroups=false
 ```
 
 ## AWS Credentials
@@ -80,7 +80,7 @@ Any value in the [v1 Volume API spec](https://kubernetes.io/docs/reference/gener
 
 * `--map=<iam_group>=<kubernetes_role>,<kubernetes_role>,<kubernetes_role>`
 
-These are all valid.
+IAM group ARNs are not supported.
 
 ## Preserving users
 
@@ -91,6 +91,54 @@ If you want to manually control some users, you can add them as a preserve argum
 ## Ignore Unknown IAM Groups
 
 By default, this program will fail if one of the IAM groups doesn't exist. Adding the argument `--ignore` will prevent this.
+
+# Helm Chart Configuration
+
+By default `eks-auth-iam-groups` will run every minute, and fail because of a lack of IAM group mappings and IAM access.
+
+| Parameter                    | Description                                                                   | Default                      |
+| ---------------------------- | ----------------------------------------------------------------------------- | ---------------------------- |
+| `schedule`                   | The Cron Tab schedule to run.                                                 | `* * * * *`                  |
+| `startingDeadlineSeconds`    | How long after a missed schedule to retry until it's counted as a failed run. | 600                          |
+| `successfulJobsHistoryLimit` | How many successful job pods to keep.                                         | 1                            |
+| `suspend`                    | Whether the job should be suspended.                                          | `false`                      |
+| `concurrencyPolicy`          | Whether two or more jobs can be ran simultaneously.                           | Forbid                       |
+| `failedJobsHistoryLimit`     | How many failed job pods to keep.                                             | 3                            |
+| `backoffLimit`               | How many times to retry the pod until the job is considered failed.           | 1                            |
+| `mappings`                   | The IAM to Kubernetes group mappings.                                         | `{}`                         |
+| `preserve`                   | The IAM users to preserve.                                                    | `[]`                         |
+| `ignoreMissingIAMGroups`     | Whether to ignore non-existent IAM groups provided in `mappings`.             | `true`                       |
+| `image.repository`           | The Docker Hub repository.                                                    | gmaresca/eks-auth-iam-groups |
+| `image.tag`                  | The image tag.                                                                | latest                       |
+| `pullPolicy`                 | The image pull policy.                                                        | IfNotPresent                 |
+| `imagePullSecrets`           | Image Pull Secrets to use.                                                    | `[]`                         |
+| `nameOverride`               | An override value for the name.                                               | ``                           |
+| `fullnameOverride`           | An override value for the full name.                                          | ``                           |
+| `cronjobLabels`              | Labels to add to the CronJob.                                                 | `{}`                         |
+| `cronjobAnnotations`         | Annotations to add to the CronJob.                                            | `{}`                         |
+| `jobLabels`                  | Labels to add to the Jobs.                                                    | `{}`                         |
+| `jobAnnotations`             | Annotations to add to the Jobs,                                               | `{}`                         |
+| `podLabels`                  | Labels to add to the Pods,                                                    | `{}`                         |
+| `podAnnotations`             | Annotations to add to the Pods,                                               | `{}`                         |
+| `aws.region`                 | The AWS region to use.                                                        | `null`                       |
+| `aws.accessKey`              | The AWS access key to use.                                                    | `null`                       |
+| `aws.secretKey`              | The AWS secret key to use.                                                    | `null`                       |
+| `aws.profile`                | The AWS profile to use.                                                       | default                      |
+| `aws.volume`                 | The fields to add to the volume for mounting AWS credentials.                 | `{}`                         |
+| `aws.volume.enabled`         | Whether to mount the AWS credentials. All volume fields needs to be provided. | `false`                      |
+| `aws.subPath`                | The subpath in the volume to the location of the AWS credentials.             | ``                           |
+| `resources.requests.cpu`     | The CPU requests.                                                             | `null`                       |
+| `resources.requests.memory`  | The memory requests.                                                          | `null`                       |
+| `resources.limits.cpu`       | The CPU limits.                                                               | `null`                       |
+| `resources.limits.memory`    | The memory limits.                                                            | `null`                       |
+| `nodeSelector`               | The pod node selector.                                                        | `{}`                         |
+| `tolerations`                | The pod node tolerations.                                                     | `{}`                         |
+| `affinity`                   | The pod node affinity.                                                        | `{}`                         |
+| `securityContext`            | The pod security context.                                                     | `{}`                         |
+| `hostNetwork`                | Whether to use the host network of the node.                                  | `false`                      |
+| `initContainers`             | Init containers to add.                                                       | `[]`                         |
+| `sidecars`                   | Additional containers to add.                                                 | `[]`                         |
+
 
 # Docker Hub
 
